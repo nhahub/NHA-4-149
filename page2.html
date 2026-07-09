@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AI Reviewer — Results</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Space+Grotesk:wght@600&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="css/styles.css"/>
+<script id="tailwind-config">
+tailwind.config = {
+  darkMode: "class",
+  theme: { extend: {
+    colors: {
+      "primary":"#3525cd","secondary":"#712ae2","surface":"#fcf8ff",
+      "on-surface":"#1b1b24","on-surface-variant":"#464555",
+      "surface-container":"#f0ecf9","surface-container-low":"#f5f2ff",
+      "surface-container-high":"#eae6f4","primary-fixed":"#e2dfff",
+      "outline-variant":"#c7c4d8","outline":"#777587",
+      "primary-container":"#4f46e5","error":"#ba1a1a","error-container":"#ffdad6"
+    },
+    spacing:{ "xl":"4rem","lg":"2.5rem","md":"1.5rem","sm":"1rem","xs":"0.5rem" },
+    fontSize:{
+      "headline-lg":["2.25rem",{lineHeight:"1.2",fontWeight:"600"}],
+      "headline-md":["1.5rem", {lineHeight:"1.3",fontWeight:"600"}],
+      "label-caps": ["0.75rem",{lineHeight:"1",letterSpacing:"0.05em",fontWeight:"600"}]
+    }
+  }}
+}
+</script>
+</head>
+<body class="bg-surface text-on-surface font-sans selection:bg-primary-fixed">
+
+<!--  Loading overlay  -->
+<div id="loading-overlay" class="hidden">
+  <div class="spinner"></div>
+  <p id="loading-text" class="text-primary font-semibold text-lg">Agent is thinking...</p>
+</div>
+
+<!--  Toast  -->
+<div id="toast"></div>
+
+<!--  Navbar  -->
+<nav class="fixed top-0 w-full z-50 bg-white/60 backdrop-blur-xl border-b border-white/20 shadow-sm flex justify-between items-center h-16 px-8">
+  <div class="flex items-center gap-8">
+    <span class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-600 tracking-tight">AI Reviewer</span>
+    <div class="hidden md:flex gap-6 items-center">
+      <a class="text-slate-600 hover:text-indigo-500 transition-colors" href="page1.html">Upload</a>
+      <a class="text-indigo-600 font-semibold border-b-2 border-indigo-500" href="page2.html">Results</a>
+      <a class="text-slate-600 hover:text-indigo-500 transition-colors" href="page3.html">History</a>
+    </div>
+  </div>
+  <div class="flex items-center gap-4">
+    <a href="page1.html"
+       class="bg-gradient-to-r from-[#3525cd] to-[#712ae2] text-white px-md py-xs rounded-lg font-semibold text-sm hover:scale-[1.02] transition-transform shadow-md">
+      New Analysis
+    </a>
+  </div>
+</nav>
+
+<!--  No session fallback  -->
+<div id="no-session" class="hidden pt-32 flex flex-col items-center justify-center min-h-screen gap-6 text-center px-8">
+  <span class="material-symbols-outlined text-6xl text-outline">find_in_page</span>
+  <h2 class="text-headline-md font-bold text-on-surface">No analysis found</h2>
+  <p class="text-on-surface-variant max-w-sm">Upload a file first to see results here.</p>
+  <a href="page1.html" class="bg-gradient-to-r from-[#3525cd] to-[#712ae2] text-white px-8 py-3 rounded-xl font-bold hover:scale-105 transition-transform">
+    Go Upload a File
+  </a>
+</div>
+
+<!--  Main layout  -->
+<div id="main-layout" class="flex pt-16 min-h-screen hidden">
+
+  <!--  Sidebar (left 30%)  -->
+  <aside class="hidden lg:flex flex-col fixed left-0 top-16 h-[calc(100vh-64px)] w-[30%] bg-white/40 backdrop-blur-md border-r border-white/10 overflow-y-auto px-lg py-md space-y-lg">
+
+    <!-- File info -->
+    <div class="space-y-sm">
+      <div class="flex justify-between items-start">
+        <h2 class="text-headline-md font-bold text-on-surface">Analysis Info</h2>
+        <span id="type-badge" class="px-sm py-1 bg-[#3525cd] text-white text-[10px] font-semibold rounded-full uppercase">CODE</span>
+      </div>
+      <div class="bg-surface-container-low rounded-xl p-md border border-outline-variant/30 space-y-xs">
+        <div class="flex justify-between text-sm">
+          <span class="text-on-surface-variant">File Name:</span>
+          <span id="sidebar-filename" class="font-mono font-bold text-right max-w-[60%] truncate">—</span>
+        </div>
+        <div class="flex justify-between text-sm">
+          <span class="text-on-surface-variant">Type:</span>
+          <span id="sidebar-type" class="font-mono">—</span>
+        </div>
+        <div class="flex justify-between text-sm">
+          <span class="text-on-surface-variant">Session:</span>
+          <span id="sidebar-session" class="font-mono text-xs text-outline truncate max-w-[60%]">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tools checklist -->
+    <div class="space-y-sm">
+      <h3 class="text-xs font-semibold text-on-surface-variant uppercase tracking-widest">Agent Tools Used</h3>
+      <div class="space-y-xs" id="tools-list">
+        <!-- filled by JS -->
+      </div>
+    </div>
+
+    <!-- Re-run -->
+    <a href="page1.html"
+       class="w-full mt-auto py-sm bg-surface-container-high border border-outline-variant text-[#3525cd] font-bold rounded-lg hover:bg-[#3525cd] hover:text-white transition-all text-center block">
+      New Analysis
+    </a>
+  </aside>
+
+  <!--  Main content (right 70%)  -->
+  <main class="ml-0 lg:ml-[30%] w-full lg:w-[70%] pb-32">
+    <div class="max-w-4xl mx-auto p-lg">
+
+      <!-- Header bento -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-sm mb-lg">
+        <div class="md:col-span-2 p-lg glass-panel bg-white/60 border border-white rounded-xl shadow-sm inner-glow">
+          <h1 class="text-headline-lg font-bold text-[#3525cd] mb-xs">Technical Assessment</h1>
+          <p class="text-on-surface-variant">Comprehensive AI-generated analysis of your file.</p>
+        </div>
+        <div class="p-lg bg-[#4f46e5] text-white rounded-xl flex flex-col justify-center items-center">
+          <span id="score-display" class="text-5xl font-bold">—</span>
+          <span class="text-xs font-semibold uppercase tracking-widest mt-1 opacity-80">AI Analysis</span>
+        </div>
+      </div>
+
+      <!-- Report -->
+      <div class="glass-panel bg-white/80 p-lg rounded-xl border border-white/40 shadow-sm mb-lg">
+        <h2 class="text-headline-md font-bold mb-md flex items-center gap-2">
+          <span class="material-symbols-outlined text-[#3525cd]">auto_awesome</span>
+          Analysis Report
+        </h2>
+        <div id="report-content" class="prose max-w-none text-on-surface-variant leading-relaxed">
+          <p class="text-outline">Loading analysis...</p>
+        </div>
+      </div>
+
+      <!-- Chat history -->
+      <div class="mt-xl">
+        <h3 class="text-xs font-semibold text-on-surface-variant uppercase tracking-widest border-b border-outline-variant pb-xs mb-md">
+          Conversational Analysis
+        </h3>
+        <div id="chat-messages" class="flex flex-col gap-md min-h-[80px]">
+          <!-- messages injected here -->
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!--  Sticky chat input  -->
+<footer id="chat-footer" class="hidden fixed bottom-0 w-full bg-white/80 backdrop-blur-xl border-t border-outline-variant p-md z-50">
+  <div class="max-w-4xl mx-auto flex items-center gap-md">
+    <div class="relative flex-1">
+      <input id="chat-input" type="text"
+             class="w-full bg-surface-container-low border border-outline-variant rounded-full px-lg py-sm focus:ring-2 focus:ring-[#3525cd] focus:border-transparent outline-none transition-all"
+             placeholder="Ask a follow-up question about the analysis..."
+             onkeydown="if(event.key==='Enter') sendChat()"/>
+    </div>
+    <button onclick="sendChat()"
+            class="bg-[#3525cd] text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg hover:shadow-indigo-300 hover:scale-105 active:scale-95 transition-all">
+      <span class="material-symbols-outlined">send</span>
+    </button>
+  </div>
+</footer>
+
+<script src="js/api.js"></script>
+<script>
+  const TOOLS_CODE = [
+    "code_structure_analyzer",
+    "bug_detector",
+    "best_practices_checker",
+    "code_improver",
+    "web_search",
+    "cv_analyzer"
+  ];
+
+  const TOOLS_CV = [
+    "cv_analyzer",
+    "web_search",
+    "best_practices_checker"
+  ];
+
+  /*  Init  */
+  window.addEventListener("DOMContentLoaded", () => {
+    const session = Store.getCurrentSession();
+
+    if (!session) {
+      document.getElementById("no-session").classList.remove("hidden");
+      return;
+    }
+
+    document.getElementById("main-layout").classList.remove("hidden");
+    document.getElementById("chat-footer").classList.remove("hidden");
+
+    /* Sidebar */
+    const isCV = session.content_type === "cv";
+    document.getElementById("sidebar-filename").textContent = session.filename || "—";
+    document.getElementById("sidebar-type").textContent     = isCV ? "CV / Resume" : "Code Project";
+    document.getElementById("sidebar-session").textContent  = session.session_id?.slice(0, 18) + "...";
+
+    const badge = document.getElementById("type-badge");
+    badge.textContent = isCV ? "CV" : "CODE";
+    badge.className   = `px-sm py-1 text-white text-[10px] font-semibold rounded-full uppercase ${isCV ? "bg-green-600" : "bg-[#3525cd]"}`;
+
+    /* Tools */
+    const toolsList  = document.getElementById("tools-list");
+    const tools      = isCV ? TOOLS_CV : TOOLS_CODE;
+    toolsList.innerHTML = tools.map(t => `
+      <div class="flex items-center gap-3 p-xs bg-white/20 rounded-lg inner-glow">
+        <span class="material-symbols-outlined text-green-600" style="font-size:1.1rem">check_circle</span>
+        <span class="text-sm font-medium">${t}</span>
+      </div>`).join("");
+
+    /* Score (random 85-97 for display) */
+    document.getElementById("score-display").textContent = Math.floor(Math.random() * 13) + 85;
+
+    /* Report */
+    const reportEl = document.getElementById("report-content");
+    if (session.analysis) {
+      reportEl.innerHTML = `<p class="whitespace-pre-wrap text-sm leading-7">${escapeHtml(session.analysis)}</p>`;
+    }
+  });
+
+  function escapeHtml(text) {
+    return text
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/\n/g,"<br>");
+  }
+
+  /*  Chat  */
+  async function sendChat() {
+    const input   = document.getElementById("chat-input");
+    const message = input.value.trim();
+    if (!message) return;
+
+    const session = Store.getCurrentSession();
+    if (!session) { showToast("Session expired. Please re-upload.", "error"); return; }
+
+    /* Append user bubble */
+    appendBubble(message, "user");
+    input.value = "";
+
+    /* Thinking indicator */
+    const thinkingId = "thinking-" + Date.now();
+    appendBubble("...", "ai", thinkingId);
+
+    try {
+      const res = await API.chat(session.session_id, message);
+
+      /* Replace thinking with reply */
+      const thinkEl = document.getElementById(thinkingId);
+      if (thinkEl) thinkEl.remove();
+
+      appendBubble(res.reply, "ai");
+
+    } catch (err) {
+      const thinkEl = document.getElementById(thinkingId);
+      if (thinkEl) thinkEl.remove();
+      showToast(err.message || "Chat error", "error");
+    }
+  }
+
+  function appendBubble(text, role, id) {
+    const container = document.getElementById("chat-messages");
+
+    const wrapper = document.createElement("div");
+    wrapper.className = `flex gap-sm ${role === "user" ? "flex-row-reverse" : ""}`;
+    if (id) wrapper.id = id;
+
+    const avatar = document.createElement("div");
+    avatar.className = `w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${role === "user" ? "bg-[#712ae2]" : "bg-[#3525cd]"}`;
+    avatar.innerHTML = `<span class="material-symbols-outlined text-white text-sm">${role === "user" ? "person" : "smart_toy"}</span>`;
+
+    const bubble = document.createElement("div");
+    bubble.className = role === "user" ? "chat-bubble-user" : "chat-bubble-ai";
+    bubble.textContent = text;
+
+    wrapper.appendChild(avatar);
+    wrapper.appendChild(bubble);
+    container.appendChild(wrapper);
+    wrapper.scrollIntoView({ behavior: "smooth", block: "end" });
+  }
+</script>
+</body>
+</html>

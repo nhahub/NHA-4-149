@@ -1,0 +1,441 @@
+================================================================
+  AI PROJECT & CV REVIEWER — API DOCUMENTATION
+  Base URL: https://morefaat69-ai-project-review.hf.space
+  Version : 2.0 | LangChain Multi-tool ReAct Agent
+================================================================
+
+
+----------------------------------------------------------------
+OVERVIEW
+----------------------------------------------------------------
+
+This is a REST API that analyzes code projects and CVs using
+a LangChain Multi-tool Agent powered by Llama 3.3 (via Groq).
+
+The API works in 2 steps:
+  1. Upload a file → POST /AI  → get session_id + analysis
+  2. Ask questions → POST /chat → get follow-up replies
+
+All responses are in JSON format.
+All AI responses are in Arabic (formal technical Arabic).
+
+
+----------------------------------------------------------------
+AUTHENTICATION
+----------------------------------------------------------------
+
+No authentication required.
+Rate limit: 20 requests / hour per IP address.
+Exceeding the limit returns HTTP 429.
+
+
+----------------------------------------------------------------
+ENDPOINT 1 — Analyze File
+----------------------------------------------------------------
+
+POST /AI
+
+Description:
+  Upload a file (code project or CV) and get a full
+  AI-generated analysis. Returns a session_id that must
+  be saved for follow-up chat requests.
+
+Request:
+  Content-Type : multipart/form-data
+  Body field   : file  (the uploaded file)
+
+Supported file types:
+  .py .js .ts .jsx .tsx .java .cpp .c .cs .go .rs
+  .php .rb .swift .kt .html .css .json .yaml .yml
+  .md .txt .pdf .zip .env .toml .cfg .ini .sh .xml
+
+Max file size: 10 MB
+
+Example (cURL):
+  curl -X POST https://morefaat69-ai-project-review.hf.space/AI \
+       -F "file=@my_project.zip"
+
+Example (Python):
+  import requests
+
+  url  = "https://morefaat69-ai-project-review.hf.space/AI"
+  with open("my_project.zip", "rb") as f:
+      res = requests.post(url, files={"file": f})
+  data = res.json()
+
+  session_id = data["session_id"]   # save this
+  analysis   = data["analysis"]     # full markdown report
+  print(analysis)
+
+Example (JavaScript / Fetch):
+  const form = new FormData();
+  form.append("file", fileInput.files[0]);
+
+  const res  = await fetch(
+    "https://morefaat69-ai-project-review.hf.space/AI",
+    { method: "POST", body: form }
+  );
+  const data = await res.json();
+
+  const sessionId = data.session_id;
+  const analysis  = data.analysis;
+
+Success Response (HTTP 200):
+  {
+    "session_id"   : "550e8400-e29b-41d4-a716-446655440000",
+    "analysis"     : "## تحليل المشروع\n...",
+    "content_type" : "code",
+    "filename"     : "my_project.zip"
+  }
+
+Fields:
+  session_id    string   UUID — use in all /chat requests
+  analysis      string   Full markdown analysis in Arabic
+  content_type  string   "code" or "cv"
+  filename      string   Original uploaded filename
+
+Error Responses:
+  400  { "error": "لم يتم رفع أي ملف" }
+  400  { "error": "الملف فارغ أو لا يمكن قراءته" }
+  413  { "error": "حجم الملف يتجاوز 10 MB" }
+  415  { "error": "نوع الملف غير مدعوم: .exe" }
+  429  { "error": "تجاوزت الحد المسموح به. حاول لاحقاً." }
+  500  { "error": "خطأ في الـ Agent: ..." }
+
+
+----------------------------------------------------------------
+ENDPOINT 2 — Chat Follow-up
+----------------------------------------------------------------
+
+POST /chat
+
+Description:
+  Send a follow-up question about the analyzed file.
+  The agent remembers the full conversation automatically.
+  Requires a valid session_id from POST /AI.
+
+Request:
+  Content-Type : application/json
+  Body:
+  {
+    "session_id" : "550e8400-e29b-41d4-a716-446655440000",
+    "message"    : "ممكن تشرحلي الـ authentication flow؟"
+  }
+
+Constraints:
+  session_id   required   string
+  message      required   string, max 2000 characters
+
+Example (cURL):
+  curl -X POST https://morefaat69-ai-project-review.hf.space/chat \
+       -H "Content-Type: application/json" \
+       -d '{
+         "session_id": "550e8400-e29b-41d4-a716-446655440000",
+         "message": "ايه اكبر مشكله في الكود؟"
+       }'
+
+Example (Python):
+  import requests
+
+  url     = "https://morefaat69-ai-project-review.hf.space/chat"
+  payload = {
+      "session_id": session_id,   # from POST /AI
+      "message"   : "ايه اكبر مشكله في الكود؟"
+  }
+  res  = requests.post(url, json=payload)
+  data = res.json()
+  print(data["reply"])
+
+Example (JavaScript / Fetch):
+  const res = await fetch(
+    "https://morefaat69-ai-project-review.hf.space/chat",
+    {
+      method  : "POST",
+      headers : { "Content-Type": "application/json" },
+      body    : JSON.stringify({
+        session_id : sessionId,
+        message    : "ايه اكبر مشكله في الكود؟"
+      })
+    }
+  );
+  const data = await res.json();
+  console.log(data.reply);
+
+Success Response (HTTP 200):
+  {
+    "reply"         : "أكبر مشكلة في الكود هي...",
+    "session_id"    : "550e8400-e29b-41d4-a716-446655440000",
+    "message_count" : 3
+  }
+
+Fields:
+  reply          string   Agent reply in Arabic
+  session_id     string   Same session_id echoed back
+  message_count  integer  Total user messages in this session
+
+Error Responses:
+  400  { "error": "session_id مطلوب" }
+  400  { "error": "الرسالة لا يمكن أن تكون فارغة" }
+  400  { "error": "الرسالة طويلة جداً (الحد 2000 حرف)" }
+  404  { "error": "الجلسة غير موجودة أو انتهت." }
+  429  { "error": "تجاوزت الحد المسموح به. حاول لاحقاً." }
+  500  { "error": "خطأ في الـ Agent: ..." }
+
+
+----------------------------------------------------------------
+ENDPOINT 3 — Get Session History
+----------------------------------------------------------------
+
+GET /session/{session_id}/history
+
+Description:
+  Returns the full conversation history for a session.
+  Useful for restoring chat state on page reload.
+
+Example (cURL):
+  curl https://morefaat69-ai-project-review.hf.space/session/550e8400-e29b-41d4-a716-446655440000/history
+
+Example (Python):
+  res  = requests.get(
+      f"https://morefaat69-ai-project-review.hf.space"
+      f"/session/{session_id}/history"
+  )
+  data = res.json()
+  for msg in data["history"]:
+      print(f"[{msg['role']}] {msg['content'][:80]}")
+
+Success Response (HTTP 200):
+  {
+    "history": [
+      { "role": "user",      "content": "..." },
+      { "role": "assistant", "content": "..." }
+    ],
+    "count": 4
+  }
+
+Error Responses:
+  404  { "error": "الجلسة غير موجودة" }
+
+
+----------------------------------------------------------------
+ENDPOINT 4 — Delete Session
+----------------------------------------------------------------
+
+DELETE /session/{session_id}
+
+Description:
+  Deletes a session and frees its memory on the server.
+  Call this when the user is done or closes the app.
+
+Example (cURL):
+  curl -X DELETE \
+    https://morefaat69-ai-project-review.hf.space/session/550e8400-e29b-41d4-a716-446655440000
+
+Example (Python):
+  requests.delete(
+      f"https://morefaat69-ai-project-review.hf.space"
+      f"/session/{session_id}"
+  )
+
+Example (JavaScript):
+  await fetch(
+    `https://morefaat69-ai-project-review.hf.space/session/${sessionId}`,
+    { method: "DELETE" }
+  );
+
+Success Response (HTTP 200):
+  { "message": "تم حذف الجلسة بنجاح" }
+
+
+----------------------------------------------------------------
+ENDPOINT 5 — Health Check
+----------------------------------------------------------------
+
+GET /health
+
+Description:
+  Check if the API is running and which model is active.
+  Use this to verify the Space is awake before uploading.
+
+Example (cURL):
+  curl https://morefaat69-ai-project-review.hf.space/health
+
+Success Response (HTTP 200):
+  {
+    "status" : "ok",
+    "mode"   : "LangChain Multi-tool Agent",
+    "model"  : "llama-3.3-70b-versatile",
+    "tools"  : [
+      "code_structure_analyzer",
+      "bug_detector",
+      "best_practices_checker",
+      "code_improver",
+      "cv_analyzer",
+      "web_search"
+    ]
+  }
+
+
+----------------------------------------------------------------
+COMPLETE INTEGRATION EXAMPLE (Python)
+----------------------------------------------------------------
+
+import requests
+
+BASE = "https://morefaat69-ai-project-review.hf.space"
+
+# Step 1: Check the API is awake
+health = requests.get(f"{BASE}/health").json()
+print("Status:", health["status"])
+
+# Step 2: Upload a file and get analysis
+with open("my_project.zip", "rb") as f:
+    res = requests.post(f"{BASE}/AI", files={"file": f})
+
+if res.status_code != 200:
+    print("Error:", res.json()["error"])
+    exit()
+
+data       = res.json()
+session_id = data["session_id"]
+print("Analysis:\n", data["analysis"])
+print("Content type:", data["content_type"])
+
+# Step 3: Ask follow-up questions
+questions = [
+    "ايه اكبر مشكله امنيه في الكود؟",
+    "ازاي احسن الـ performance؟",
+]
+for q in questions:
+    r = requests.post(f"{BASE}/chat", json={
+        "session_id": session_id,
+        "message"   : q,
+    }).json()
+    print(f"\nQ: {q}")
+    print(f"A: {r['reply']}")
+
+# Step 4: Get full history
+history = requests.get(f"{BASE}/session/{session_id}/history").json()
+print(f"\nTotal messages: {history['count']}")
+
+# Step 5: Clean up
+requests.delete(f"{BASE}/session/{session_id}")
+print("Session deleted.")
+
+
+----------------------------------------------------------------
+COMPLETE INTEGRATION EXAMPLE (JavaScript)
+----------------------------------------------------------------
+
+const BASE = "https://morefaat69-ai-project-review.hf.space";
+
+async function analyzeProject(file) {
+
+  // Step 1: Health check
+  const health = await fetch(`${BASE}/health`).then(r => r.json());
+  if (health.status !== "ok") throw new Error("API offline");
+
+  // Step 2: Upload file
+  const form = new FormData();
+  form.append("file", file);
+
+  const uploadRes = await fetch(`${BASE}/AI`, {
+    method: "POST",
+    body  : form,
+  });
+
+  if (!uploadRes.ok) {
+    const err = await uploadRes.json();
+    throw new Error(err.error);
+  }
+
+  const { session_id, analysis, content_type } = await uploadRes.json();
+  console.log("Analysis:", analysis);
+
+  // Step 3: Follow-up chat
+  const chatRes = await fetch(`${BASE}/chat`, {
+    method : "POST",
+    headers: { "Content-Type": "application/json" },
+    body   : JSON.stringify({
+      session_id,
+      message: "ايه اخطر bug في الكود؟",
+    }),
+  });
+
+  const { reply } = await chatRes.json();
+  console.log("Reply:", reply);
+
+  // Step 4: Delete session
+  await fetch(`${BASE}/session/${session_id}`, { method: "DELETE" });
+
+  return { session_id, analysis, content_type };
+}
+
+
+----------------------------------------------------------------
+NOTES FOR BACKEND DEVELOPERS
+----------------------------------------------------------------
+
+1. SESSION LIFETIME
+   Sessions are stored in-memory on the server.
+   They are lost if the HuggingFace Space restarts.
+   Always save the analysis text on your side after /AI.
+
+2. SPACE COLD START
+   HuggingFace free Spaces sleep after 30 min of inactivity.
+   First request after sleep takes 20-40 seconds to wake up.
+   Call GET /health first and wait for "ok" before uploading.
+
+3. RATE LIMIT STRATEGY
+   Limit is 20 requests/hour per IP.
+   Each file upload = 1 request.
+   Each chat message = 1 request.
+   If you get 429, wait and retry after 1 hour.
+
+4. FILE SIZE
+   Max 10 MB. For ZIP files, the server skips:
+     __pycache__ / node_modules / .git / .DS_Store
+   Only whitelisted text-based extensions are read.
+
+5. RESPONSE TIME
+   File analysis: 8 to 15 seconds (3 tool calls).
+   Chat messages: 3 to 6 seconds.
+   Show a loading indicator on your UI.
+
+6. ERROR HANDLING
+   Always check res.status_code / res.ok before using data.
+   The "error" field in JSON contains an Arabic description.
+   Log it for debugging but show a user-friendly message.
+
+7. CONTENT TYPE DETECTION
+   The API auto-detects if the file is a CV or code.
+   Check the "content_type" field in the /AI response:
+     "code" → code project was detected
+     "cv"   → resume / CV was detected
+
+
+----------------------------------------------------------------
+QUICK REFERENCE TABLE
+----------------------------------------------------------------
+
+Method    Endpoint                          Auth    Body
+------    --------                          ----    ----
+POST      /AI                               None    multipart/form-data (file)
+POST      /chat                             None    JSON (session_id, message)
+GET       /session/{session_id}/history     None    -
+DELETE    /session/{session_id}             None    -
+GET       /health                           None    -
+
+HTTP Status Codes Used:
+  200   Success
+  400   Bad request (missing file, empty message, etc.)
+  404   Session not found
+  413   File too large
+  415   Unsupported file type
+  429   Rate limit exceeded
+  500   Internal server / agent error
+
+================================================================
+  END OF DOCUMENTATION
+  API Base URL: https://morefaat69-ai-project-review.hf.space
+================================================================

@@ -1,0 +1,22 @@
+# ── Web Framework ─────────────────────────────────────────────────────────────
+flask==3.1.0
+flask-cors==5.0.0
+
+# ── LangChain Core ────────────────────────────────────────────────────────────
+langchain==0.3.25
+langchain-openai==0.3.16
+langchain-community==0.3.23
+langchainhub==0.1.21
+
+# ── LLM Provider (Grok via OpenAI-compatible API) ─────────────────────────────
+openai==1.77.0
+
+# ── Web Search (no API key needed) ────────────────────────────────────────────
+duckduckgo-search==7.5.3
+
+# ── File Parsing ──────────────────────────────────────────────────────────────
+PyPDF2==3.0.1
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+python-dotenv==1.1.0
+tiktoken==0.9.0
